@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gmail Volume Tracker
 // @namespace    https://github.com/NightMean/Gmail-Volume-Tracker
-// @version      1.3.3
+// @version      1.3.4
 // @description  Displays a real-time incoming email volume counter and 30-day activity heatmap in Gmail.
 // @author       NightMean
 // @match        https://mail.google.com/*
@@ -126,7 +126,7 @@
     if (!bannerEl) return;
     bannerEl.textContent = '';
     bannerEl.className = `gvt-banner ${type}`;
-    bannerEl.style.display = 'flex';
+    bannerEl.style.setProperty('display', 'flex', 'important');
 
     const header = document.createElement('div');
     header.className = 'gvt-banner-header';
@@ -167,7 +167,8 @@
 
   function hideStatusBanner() {
     if (bannerEl) {
-      bannerEl.style.display = 'none';
+      bannerEl.className = 'gvt-banner';
+      bannerEl.style.setProperty('display', 'none', 'important');
       bannerEl.textContent = '';
     }
   }
@@ -406,17 +407,25 @@
         background: rgba(255,255,255,0.1) !important;
       }
 
-      /* In-Panel Status & Error Banner */
+      /* In-Panel Status & Error Banner (hidden by default, zero spacing when inactive) */
       .gvt-banner {
+        display: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-sizing: border-box !important;
+      }
+
+      .gvt-banner.error,
+      .gvt-banner.warning {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 5px !important;
         border-radius: 8px !important;
         padding: 8px 10px !important;
         margin-bottom: 10px !important;
         font-size: 11px !important;
         line-height: 1.4 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 5px !important;
-        box-sizing: border-box !important;
       }
 
       .gvt-banner.error {
@@ -700,7 +709,7 @@
     bannerEl = document.createElement('div');
     bannerEl.id = 'gvt-status-banner';
     bannerEl.className = 'gvt-banner';
-    bannerEl.style.display = 'none';
+    bannerEl.style.setProperty('display', 'none', 'important');
     tooltipEl.appendChild(bannerEl);
 
     // Summary stats bar
