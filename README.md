@@ -1,7 +1,7 @@
 # Gmail Volume Tracker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.3.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.3.1-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Gmail-red.svg)
 ![Userscript](https://img.shields.io/badge/userscript-Tampermonkey-orange.svg)
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gmail Volume Tracker
 // @namespace    https://github.com/NightMean/Gmail-Volume-Tracker
-// @version      1.3.0
+// @version      1.3.1
 // @description  Displays a real-time incoming email volume counter and 30-day activity heatmap in Gmail.
 // @author       NightMean
 // @match        https://mail.google.com/*
@@ -767,10 +767,16 @@
       if (iconEl) iconEl.classList.remove('spinning');
       console.log('[Gmail Volume Tracker] Received response:', data);
 
-      if (data && data.status === "success") {
+      if (data && (data.status === "success" || data.status === "quota_exceeded")) {
         data.clientFetchedAt = formatTime(new Date());
         setLastData(data);
         updateUI(data);
+
+        if (data.status === "quota_exceeded" && isManual) {
+          alert("⚠️ Google Apps Script Daily Quota Reached\n\n" +
+                "Google restricts Gmail read operations to a daily quota for free Google accounts.\n\n" +
+                "Your tracker is showing cached statistics and will resume live counting automatically once Google resets the rolling 24-hour quota.");
+        }
       } else {
         console.error("[Gmail Volume Tracker] Error from Web App:", data);
         if (countNumberEl) countNumberEl.textContent = '!';
