@@ -1,7 +1,7 @@
 # Gmail Volume Tracker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.3.2-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.3.3-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Gmail-red.svg)
 ![Userscript](https://img.shields.io/badge/userscript-Tampermonkey-orange.svg)
 
@@ -62,7 +62,7 @@ It automatically filters out self-sent emails (`-from:me`) so it strictly measur
 2. Confirm the installation in your Userscript manager.
 3. Open or refresh [Gmail](https://mail.google.com/).
 4. Look at the top-right corner next to the Support (`?`) button.
-5. Click the badge showing **`setup`** (or open the Tampermonkey menu and click **⚙️ Set Google Apps Script URL**).
+5. Click the badge showing **`Configure`** (or open the Tampermonkey menu and click **⚙️ Set Google Apps Script URL**).
 6. Paste your Web App URL (with `?token=...` if you configured one) and confirm.
 7. The badge will immediately display today's incoming email count!
 

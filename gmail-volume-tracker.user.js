@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gmail Volume Tracker
 // @namespace    https://github.com/NightMean/Gmail-Volume-Tracker
-// @version      1.3.2
+// @version      1.3.3
 // @description  Displays a real-time incoming email volume counter and 30-day activity heatmap in Gmail.
 // @author       NightMean
 // @match        https://mail.google.com/*
@@ -90,11 +90,13 @@
   let isFetching = false;
   let badgeContainer = null;
   let countNumberEl = null;
+  let labelEl = null;
   let iconEl = null;
   let tooltipEl = null;
   let bannerEl = null;
+  let isNeedsConfig = false;
 
-  function setBadgeState(state, text = null, title = null) {
+  function setBadgeState(state, text = null, title = null, hideLabel = false) {
     if (!badgeContainer) return;
     const badge = badgeContainer.querySelector('.gvt-badge');
     if (!badge) return;
@@ -109,6 +111,10 @@
 
     if (text !== null && countNumberEl) {
       countNumberEl.textContent = text;
+    }
+
+    if (labelEl) {
+      labelEl.style.display = hideLabel ? 'none' : '';
     }
 
     if (title !== null) {
@@ -645,9 +651,17 @@
     countNumberEl.className = 'gvt-count';
     countNumberEl.textContent = '...';
 
-    const labelEl = document.createElement('span');
+    labelEl = document.createElement('span');
     labelEl.className = 'gvt-label';
     labelEl.textContent = 'today';
+
+    if (!getAppScriptUrl()) {
+      isNeedsConfig = true;
+      countNumberEl.textContent = 'Configure';
+      labelEl.style.display = 'none';
+      badge.title = 'Click to configure Google Apps Script URL';
+      badge.classList.add('has-warning');
+    }
 
     badge.appendChild(iconEl);
     badge.appendChild(countNumberEl);
@@ -740,8 +754,14 @@
     badgeContainer.appendChild(badge);
     badgeContainer.appendChild(tooltipEl);
 
-    // Click handler: click badge to toggle pinned heatmap panel
+    // Click handler: click badge to configure or toggle pinned heatmap panel
     badge.addEventListener('click', (e) => {
+      if (isNeedsConfig || !getAppScriptUrl()) {
+        e.stopPropagation();
+        promptForScriptUrl();
+        return;
+      }
+
       if (e.shiftKey) {
         const epoch = getTodayStartEpochSec();
         window.location.hash = `#search/in%3Aanywhere+after%3A${epoch}+-from%3Ame`;
@@ -780,7 +800,8 @@
     countNumberEl.textContent = count !== undefined ? count : '?';
 
     if (!data.quotaExceeded) {
-      setBadgeState('normal', null, `Gmail Volume Tracker: ${count} incoming emails today. Click to pin heatmap.`);
+      isNeedsConfig = false;
+      setBadgeState('normal', null, `Gmail Volume Tracker: ${count} incoming emails today. Click to pin heatmap.`, false);
     }
 
     // Update quick summary stats
@@ -920,7 +941,8 @@
     const url = getAppScriptUrl();
 
     if (!url) {
-      setBadgeState('warning', 'setup', 'Gmail Volume Tracker: Web App URL not configured. Click to set up.');
+      isNeedsConfig = true;
+      setBadgeState('warning', 'Configure', 'Gmail Volume Tracker: Web App URL not configured. Click to configure.', true);
       showStatusBanner('warning', '⚙️ Setup Required', 'Please configure your Google Apps Script Web App URL to start tracking email volume.', true);
       return;
     }
@@ -941,8 +963,9 @@
       console.log('[Gmail Volume Tracker] Received response:', data);
 
       if (data && data.status === "success") {
+        isNeedsConfig = false;
         hideStatusBanner();
-        setBadgeState('normal');
+        setBadgeState('normal', null, null, false);
         data.clientFetchedAt = formatTime(new Date());
         setLastData(data);
         updateUI(data);
@@ -960,7 +983,7 @@
         console.error("[Gmail Volume Tracker] Error from Web App:", data);
         const errMsg = (data && (data.message || data.error)) || JSON.stringify(data);
         const isQuota = errMsg.includes('príliš veľakrát') || errMsg.includes('too many times') || errMsg.includes('Service invoked');
-        const isAuth = errMsg.includes('Unauthorized') || errMsg.includes('token');
+        const isAuth = errMsg.includes('Unauthorized') || errMsg.includes('token') || errMsg.includes('security token');
 
         if (isQuota) {
           const cached = getLastData();
@@ -977,11 +1000,12 @@
             'Google temporarily throttled Gmail read queries (Služba vyvolaná príliš veľakrát ráz za deň). Showing cached statistics until rolling 24h quota reset.'
           );
         } else if (isAuth) {
-          setBadgeState('error', '!', 'Gmail Volume Tracker: Security token invalid or missing (?token=...). Click badge to fix URL.');
+          isNeedsConfig = true;
+          setBadgeState('error', 'Configure', 'Gmail Volume Tracker: Security token invalid or missing (?token=...). Click to configure URL.', true);
           showStatusBanner(
             'error',
             '🔒 Authentication Failed',
-            'Invalid or missing security token. Please ensure ?token=YOUR_TOKEN matches SECURITY_SECRET in Code.gs.',
+            'Invalid or missing security token. Click "Set URL" below or click the badge to configure your Web App URL with ?token=YOUR_TOKEN.',
             true
           );
         } else {
