@@ -1,11 +1,11 @@
 # Gmail Volume Tracker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Version](https://img.shields.io/badge/version-1.2.1-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.3.0-brightgreen.svg)
 ![Platform](https://img.shields.io/badge/platform-Gmail-red.svg)
 ![Userscript](https://img.shields.io/badge/userscript-Tampermonkey-orange.svg)
 
-A lightweight, privacy-focused tool that displays a real-time incoming email volume counter directly in Gmail's top-right header.
+A lightweight, privacy-focused tool that displays a real-time incoming email volume counter and a 30-day activity heatmap directly in Gmail's top-right header.
 
 Unlike standard inbox counters that only reflect unread messages in your primary view, this tracks **all incoming emails across your entire account**, including:
 - **Inbox**
@@ -14,7 +14,17 @@ Unlike standard inbox counters that only reflect unread messages in your primary
 - **Archive**
 - **All custom labels and categories**
 
-It automatically filters out self-sent emails (`-from:me`) so it strictly measures received mail throughput.
+It automatically filters out self-sent emails (`-from:me`) so it strictly measures true incoming email throughput.
+
+---
+
+## Key Highlights
+
+- **Real-Time Daily Volume:** Live count of today's incoming emails docked cleanly next to Gmail's native header icons.
+- **30-Day Activity Heatmap:** GitHub-style visual calendar grid displaying daily volume and traffic trends at a single glance without needing to hover.
+- **1-Click Historical Search:** Click any day tile on the heatmap to instantly view all emails received on that specific date in Gmail.
+- **High-Performance Smart Caching:** Historical days are cached in Google Apps Script `PropertiesService` for instantaneous (~1s) responses.
+- **100% Privacy Focused:** Your emails never touch any third-party servers. All queries execute directly between your browser and your own private Google Apps Script deployment.
 
 ---
 
@@ -27,16 +37,13 @@ It automatically filters out self-sent emails (`-from:me`) so it strictly measur
 │                                 │         │                               │
 │ • Runs inside your Google Acct  │  JSON   │ • Matches mail.google.com     │
 │ • Has native GmailApp access    │ ◄─────► │ • Injects top-right UI badge  │
-│ • Queries "in:anywhere after:X" │         │ • Auto-refreshes periodically │
-│ • Counts messages across labels │         │ • Shift+click opens search    │
+│ • Queries "in:anywhere after:X" │         │ • Renders 30-day heatmap grid │
+│ • Caches 30-day history in props│         │ • 1-click date search filter  │
 └─────────────────────────────────┘         └───────────────────────────────┘
 ```
 
-- **Backend (`Code.gs`):** A lightweight Google Apps Script Web App deployed in your own Google account. It uses `GmailApp.search("in:anywhere after:<start_of_day> -from:me")` to accurately count emails across your entire mailbox in milliseconds.
-- **Frontend (`gmail-volume-tracker.user.js`):** A userscript that runs on `mail.google.com`, fetches the count in the background, and renders a native-styled pill badge in Gmail's top-right header with interactive tooltips and auto-refresh.
-
-> [!NOTE]
-> **100% Privacy Focused:** Your emails never touch any third-party servers. All queries execute directly between your browser and your own Google Apps Script deployment.
+- **Backend (`Code.gs`):** A lightweight Google Apps Script Web App deployed in your own Google account. It uses `GmailApp.getMessagesForThreads()` and `PropertiesService` to accurately count emails across your entire mailbox in milliseconds.
+- **Frontend (`gmail-volume-tracker.user.js`):** A userscript that runs on `mail.google.com`, fetches data in the background, and renders a native-styled pill badge and interactive 30-day heatmap panel.
 
 ---
 
@@ -49,7 +56,7 @@ It automatically filters out self-sent emails (`-from:me`) so it strictly measur
 
 2. Click **[Install here](https://raw.githubusercontent.com/NightMean/Gmail-Volume-Tracker/main/gmail-volume-tracker.user.js)**
 3. Confirm the installation in your Userscript manager.
-4. Follow the [Quick Setup Guide](#quick-setup-guide) below to deploy your backend Web App.
+4. Follow the setup guide below to deploy your backend Web App.
 
 ---
 
@@ -88,9 +95,11 @@ It automatically filters out self-sent emails (`-from:me`) so it strictly measur
 
 ## Features & Controls
 
-- **Hover:** Displays a detailed card with individual message count, thread count, and last checked timestamp.
-- **Click:** Triggers an immediate real-time refresh (with an animated spinning indicator).
-- **Shift + Click:** Automatically navigates to Gmail search for `in:anywhere after:<today> -from:me` to view the matching emails directly.
+- **Click Badge:** Toggles the 30-day Activity Heatmap panel pinned open so you can inspect days without holding the mouse. Click outside to close.
+- **Click Heatmap Cell:** Instantly navigates Gmail search to that exact day's emails (`in:anywhere after:<start> before:<end> -from:me`).
+- **Hover Heatmap Cell:** Displays full date and exact count tooltip.
+- **Shift + Click Badge:** Directly navigates to today's received emails in Gmail.
+- **Refresh Button (`🔄`):** Forces an immediate real-time refresh from inside the popover header.
 
 ---
 

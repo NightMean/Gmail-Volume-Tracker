@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Gmail Volume Tracker
 // @namespace    https://github.com/NightMean/Gmail-Volume-Tracker
-// @version      1.2.1
-// @description  Displays a real-time incoming email volume counter in Gmail's top-right header across all labels, spam, and trash.
+// @version      1.3.0
+// @description  Displays a real-time incoming email volume counter and 30-day activity heatmap in Gmail.
 // @author       NightMean
 // @match        https://mail.google.com/*
 // @include      *://mail.google.com/*
@@ -97,6 +97,16 @@
 
   function formatTime(date) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getShortMonth(dateStr) {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const parts = (dateStr || '').split("-");
+    if (parts.length === 3) {
+      const mIdx = parseInt(parts[1], 10) - 1;
+      return months[mIdx] || "";
+    }
+    return "";
   }
 
   // ============================================================================
@@ -217,56 +227,152 @@
         letter-spacing: 0.4px !important;
       }
 
-      /* Tooltip */
+      /* Tooltip / Heatmap Panel */
       .gvt-tooltip {
         visibility: hidden !important;
         position: absolute !important;
         top: calc(100% + 4px) !important;
         right: 0 !important;
-        min-width: 220px !important;
+        width: 326px !important;
         background-color: #202124 !important;
         color: #ffffff !important;
         font-family: Roboto, 'Google Sans', sans-serif !important;
         font-size: 12px !important;
         line-height: 1.5 !important;
-        padding: 10px 14px !important;
-        border-radius: 8px !important;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.35) !important;
+        padding: 12px 14px !important;
+        border-radius: 10px !important;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.5) !important;
         z-index: 10000000 !important;
         opacity: 0 !important;
         transform: translateY(-4px) !important;
         transition: opacity 0.2s, transform 0.2s, visibility 0.2s !important;
         pointer-events: none !important;
         white-space: normal !important;
+        box-sizing: border-box !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
       }
 
-      #gvt-badge-container:hover .gvt-tooltip {
+      #gvt-badge-container:hover .gvt-tooltip,
+      #gvt-badge-container.gvt-pinned .gvt-tooltip {
         visibility: visible !important;
         opacity: 1 !important;
         transform: translateY(0) !important;
+        pointer-events: auto !important;
+      }
+
+      .gvt-tooltip-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+        padding-bottom: 6px !important;
+        margin-bottom: 8px !important;
       }
 
       .gvt-tooltip-title {
         font-weight: 600 !important;
         font-size: 13px !important;
-        margin-bottom: 6px !important;
         color: #8ab4f8 !important;
-        border-bottom: 1px solid rgba(255,255,255,0.15) !important;
-        padding-bottom: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
       }
 
-      .gvt-tooltip-row {
+      .gvt-tooltip-actions {
+        display: flex !important;
+        gap: 8px !important;
+        align-items: center !important;
+      }
+
+      .gvt-action-btn {
+        background: transparent !important;
+        border: none !important;
+        color: #9aa0a6 !important;
+        cursor: pointer !important;
+        font-size: 13px !important;
+        padding: 2px 4px !important;
+        border-radius: 4px !important;
+        line-height: 1 !important;
+        transition: color 0.15s, background 0.15s !important;
+      }
+
+      .gvt-action-btn:hover {
+        color: #ffffff !important;
+        background: rgba(255,255,255,0.1) !important;
+      }
+
+      .gvt-summary-stats {
         display: flex !important;
         justify-content: space-between !important;
-        margin: 4px 0 !important;
-      }
-
-      .gvt-tooltip-row-label {
+        font-size: 11px !important;
         color: #bdc1c6 !important;
+        margin-bottom: 10px !important;
+        padding: 4px 8px !important;
+        background: rgba(255,255,255,0.05) !important;
+        border-radius: 6px !important;
       }
 
-      .gvt-tooltip-row-val {
+      .gvt-summary-stats span strong {
+        color: #e8eaed !important;
+      }
+
+      /* Heatmap Grid (6 columns x 5 rows = 30 days) */
+      .gvt-heatmap-section-title {
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        color: #9aa0a6 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        margin-bottom: 6px !important;
+      }
+
+      .gvt-heatmap-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 5px !important;
+        margin: 6px 0 10px 0 !important;
+      }
+
+      .gvt-heatmap-cell {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 5px 2px !important;
+        min-height: 40px !important;
+        border-radius: 6px !important;
+        cursor: pointer !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        position: relative !important;
+        text-align: center !important;
+        user-select: none !important;
+        box-sizing: border-box !important;
+        border: 1px solid transparent !important;
+      }
+
+      .gvt-heatmap-cell:hover {
+        transform: translateY(-2px) scale(1.05) !important;
+        z-index: 10 !important;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.6) !important;
+      }
+
+      .gvt-heatmap-cell.is-today {
+        outline: 2px solid #8ab4f8 !important;
+        outline-offset: 1px !important;
+      }
+
+      .gvt-cell-day {
+        font-size: 9.5px !important;
         font-weight: 500 !important;
+        opacity: 0.75 !important;
+        line-height: 1.1 !important;
+        margin-bottom: 2px !important;
+      }
+
+      .gvt-cell-count {
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
       }
 
       .gvt-tooltip-footer {
@@ -275,6 +381,8 @@
         border-top: 1px solid rgba(255,255,255,0.1) !important;
         font-size: 11px !important;
         color: #9aa0a6 !important;
+        display: flex !important;
+        justify-content: space-between !important;
       }
     `;
     document.head.appendChild(style);
@@ -303,7 +411,7 @@
         let target = el;
         while (target.parentElement && 
                target.parentElement.tagName !== 'HEADER' && 
-               target.parentElement !== document.body &&
+               target.parentElement !== document.body && 
                target.parentElement.children.length <= 1) {
           target = target.parentElement;
         }
@@ -366,7 +474,7 @@
     badge.className = 'gvt-badge';
     badge.setAttribute('role', 'button');
     badge.setAttribute('tabindex', '0');
-    badge.title = 'Click to refresh count • Shift+Click to open Gmail search';
+    badge.title = 'Click to open 30-Day Heatmap • Shift+Click to search today';
 
     iconEl = document.createElement('span');
     iconEl.className = 'gvt-icon';
@@ -384,49 +492,100 @@
     badge.appendChild(countNumberEl);
     badge.appendChild(labelEl);
 
-    // Tooltip built safely without innerHTML (complying with Trusted Types)
+    // Tooltip & 30-day heatmap panel (Trusted Types compliant)
     tooltipEl = document.createElement('div');
     tooltipEl.className = 'gvt-tooltip';
 
+    // Panel Header
+    const ttHeader = document.createElement('div');
+    ttHeader.className = 'gvt-tooltip-header';
+
     const ttTitle = document.createElement('div');
     ttTitle.className = 'gvt-tooltip-title';
-    ttTitle.textContent = 'Received Today';
-    tooltipEl.appendChild(ttTitle);
+    ttTitle.textContent = '📬 30-Day Email Activity';
 
-    function createRow(labelText, valId, defaultVal) {
-      const row = document.createElement('div');
-      row.className = 'gvt-tooltip-row';
-      const label = document.createElement('span');
-      label.className = 'gvt-tooltip-row-label';
-      label.textContent = labelText;
-      const val = document.createElement('span');
-      val.className = 'gvt-tooltip-row-val';
-      if (valId) val.id = valId;
-      val.textContent = defaultVal;
-      row.appendChild(label);
-      row.appendChild(val);
-      return row;
-    }
+    const ttActions = document.createElement('div');
+    ttActions.className = 'gvt-tooltip-actions';
 
-    tooltipEl.appendChild(createRow('Emails (Threads):', 'gvt-tt-threads', '--'));
-    tooltipEl.appendChild(createRow('Individual Msgs:', 'gvt-tt-messages', '--'));
-    tooltipEl.appendChild(createRow('Last Checked:', 'gvt-tt-time', 'Never'));
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'gvt-action-btn';
+    refreshBtn.title = 'Refresh email counts';
+    refreshBtn.textContent = '🔄';
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fetchCount(true);
+    });
 
+    ttActions.appendChild(refreshBtn);
+    ttHeader.appendChild(ttTitle);
+    ttHeader.appendChild(ttActions);
+    tooltipEl.appendChild(ttHeader);
+
+    // Summary stats bar
+    const statsRow = document.createElement('div');
+    statsRow.className = 'gvt-summary-stats';
+
+    const statToday = document.createElement('span');
+    statToday.id = 'gvt-stat-today';
+    statToday.textContent = 'Today: --';
+
+    const statTotal = document.createElement('span');
+    statTotal.id = 'gvt-stat-total';
+    statTotal.textContent = '30d: --';
+
+    const statAvg = document.createElement('span');
+    statAvg.id = 'gvt-stat-avg';
+    statAvg.textContent = 'Avg: --';
+
+    statsRow.appendChild(statToday);
+    statsRow.appendChild(statTotal);
+    statsRow.appendChild(statAvg);
+    tooltipEl.appendChild(statsRow);
+
+    // Heatmap Section Title
+    const hmTitle = document.createElement('div');
+    hmTitle.className = 'gvt-heatmap-section-title';
+    hmTitle.textContent = 'Daily Breakdown (Past 30 Days)';
+    tooltipEl.appendChild(hmTitle);
+
+    // 30-Day Heatmap Grid
+    const heatmapGrid = document.createElement('div');
+    heatmapGrid.className = 'gvt-heatmap-grid';
+    heatmapGrid.id = 'gvt-heatmap-grid';
+    tooltipEl.appendChild(heatmapGrid);
+
+    // Panel Footer
     const ttFooter = document.createElement('div');
     ttFooter.className = 'gvt-tooltip-footer';
-    ttFooter.textContent = 'Click to refresh • Shift+Click to open search';
+
+    const ftLeft = document.createElement('span');
+    ftLeft.textContent = 'Click cell to view day in Gmail';
+
+    const ftRight = document.createElement('span');
+    ftRight.id = 'gvt-tt-time';
+    ftRight.textContent = 'Never';
+
+    ttFooter.appendChild(ftLeft);
+    ttFooter.appendChild(ftRight);
     tooltipEl.appendChild(ttFooter);
 
     badgeContainer.appendChild(badge);
     badgeContainer.appendChild(tooltipEl);
 
-    // Click handler
+    // Click handler: click badge to toggle pinned heatmap panel
     badge.addEventListener('click', (e) => {
       if (e.shiftKey) {
         const epoch = getTodayStartEpochSec();
         window.location.hash = `#search/in%3Aanywhere+after%3A${epoch}+-from%3Ame`;
       } else {
-        fetchCount(true);
+        badgeContainer.classList.toggle('gvt-pinned');
+      }
+    });
+
+    // Close pinned panel when clicking outside
+    document.addEventListener('click', (e) => {
+      if (badgeContainer && !badgeContainer.contains(e.target)) {
+        badgeContainer.classList.remove('gvt-pinned');
       }
     });
 
@@ -440,25 +599,149 @@
   }
 
   // ============================================================================
-  // DATA FETCHING
+  // DATA FETCHING & UI UPDATE
   // ============================================================================
   function updateUI(data) {
     if (!countNumberEl) return;
 
-    // Display primary count based on DISPLAY_MODE
+    // Display primary count on the header badge
     const count = DISPLAY_MODE === 'threads' 
       ? (data.threadsCount !== undefined ? data.threadsCount : data.messagesCount) 
       : (data.messagesCount !== undefined ? data.messagesCount : data.threadsCount);
 
     countNumberEl.textContent = count !== undefined ? count : '?';
 
-    const ttThreads = document.getElementById('gvt-tt-threads');
-    const ttMessages = document.getElementById('gvt-tt-messages');
+    // Update quick summary stats
+    const statToday = document.getElementById('gvt-stat-today');
+    const statTotal = document.getElementById('gvt-stat-total');
+    const statAvg = document.getElementById('gvt-stat-avg');
     const ttTime = document.getElementById('gvt-tt-time');
 
-    if (ttThreads) ttThreads.textContent = data.threadsCount !== undefined ? data.threadsCount : '--';
-    if (ttMessages) ttMessages.textContent = (data.messagesCount !== undefined && data.messagesCount > 0) ? data.messagesCount : (data.threadsCount ?? '--');
-    if (ttTime) ttTime.textContent = data.clientFetchedAt || data.updatedAt || formatTime(new Date());
+    if (statToday) {
+      statToday.textContent = '';
+      statToday.appendChild(document.createTextNode('Today: '));
+      const b = document.createElement('strong');
+      b.textContent = count !== undefined ? count : '--';
+      statToday.appendChild(b);
+    }
+
+    if (ttTime) {
+      ttTime.textContent = (data.clientFetchedAt || data.updatedAt || formatTime(new Date()));
+    }
+
+    // Render 30-Day Heatmap Grid
+    const grid = document.getElementById('gvt-heatmap-grid');
+    if (!grid) return;
+
+    const history = data.history || [];
+    if (history.length === 0) {
+      grid.textContent = '';
+      const emptyNote = document.createElement('div');
+      emptyNote.style.gridColumn = 'span 6';
+      emptyNote.style.textAlign = 'center';
+      emptyNote.style.padding = '12px 0';
+      emptyNote.style.color = '#9aa0a6';
+      emptyNote.textContent = 'Loading 30-day history...';
+      grid.appendChild(emptyNote);
+      return;
+    }
+
+    grid.textContent = '';
+
+    // Calculate total and max for color scaling
+    let total30 = 0;
+    let maxCount = 1;
+    for (const item of history) {
+      const c = (DISPLAY_MODE === 'threads' ? (item.threadsCount ?? item.messagesCount) : (item.messagesCount ?? item.threadsCount)) || 0;
+      total30 += c;
+      if (c > maxCount) maxCount = c;
+    }
+
+    const avg = Math.round(total30 / history.length);
+    if (statTotal) {
+      statTotal.textContent = '';
+      statTotal.appendChild(document.createTextNode('30d: '));
+      const b = document.createElement('strong');
+      b.textContent = total30.toLocaleString();
+      statTotal.appendChild(b);
+    }
+
+    if (statAvg) {
+      statAvg.textContent = '';
+      statAvg.appendChild(document.createTextNode('Avg: '));
+      const b = document.createElement('strong');
+      b.textContent = avg.toString() + '/d';
+      statAvg.appendChild(b);
+    }
+
+    // Render each day cell
+    for (const item of history) {
+      const c = (DISPLAY_MODE === 'threads' ? (item.threadsCount ?? item.messagesCount) : (item.messagesCount ?? item.threadsCount)) || 0;
+      const cell = document.createElement('div');
+      cell.className = 'gvt-heatmap-cell';
+      if (item.isToday) cell.classList.add('is-today');
+
+      // Heatmap color intensity (Emerald gradient in dark mode)
+      const ratio = c / maxCount;
+      let bg = 'rgba(255,255,255,0.04)';
+      let textColor = '#9aa0a6';
+      let borderColor = 'rgba(255,255,255,0.06)';
+
+      if (c === 0) {
+        bg = 'rgba(255,255,255,0.03)';
+        textColor = '#5f6368';
+      } else if (ratio <= 0.25) {
+        bg = '#0e3a24';
+        textColor = '#81c995';
+        borderColor = '#137333';
+      } else if (ratio <= 0.50) {
+        bg = '#137333';
+        textColor = '#e6f4ea';
+        borderColor = '#1e8e3e';
+      } else if (ratio <= 0.75) {
+        bg = '#1e8e3e';
+        textColor = '#ffffff';
+        borderColor = '#34a853';
+      } else {
+        bg = '#34a853';
+        textColor = '#ffffff';
+        borderColor = '#81c995';
+      }
+
+      cell.style.backgroundColor = bg;
+      cell.style.color = textColor;
+      cell.style.borderColor = borderColor;
+
+      // Tooltip description on hover
+      const labelDate = item.date || '';
+      const dayName = item.dayName || '';
+      cell.title = `${dayName ? dayName + ', ' : ''}${labelDate}: ${c} emails (Click to search in Gmail)`;
+
+      // Day label (top: e.g. "9 Oct")
+      const dayEl = document.createElement('div');
+      dayEl.className = 'gvt-cell-day';
+      dayEl.textContent = `${item.dayNumber || ''} ${item.date ? getShortMonth(item.date) : ''}`;
+
+      // Count label (center: e.g. "199")
+      const countEl = document.createElement('div');
+      countEl.className = 'gvt-cell-count';
+      countEl.textContent = c.toString();
+
+      cell.appendChild(dayEl);
+      cell.appendChild(countEl);
+
+      // Clicking any day opens Gmail search for that day
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (item.startEpochSec && item.endEpochSec) {
+          window.location.hash = `#search/in%3Aanywhere+after%3A${item.startEpochSec}+before%3A${item.endEpochSec}+-from%3Ame`;
+        } else if (item.date) {
+          window.location.hash = `#search/in%3Aanywhere+after%3A${item.date.replace(/-/g, '/')}+-from%3Ame`;
+        }
+      });
+
+      grid.appendChild(cell);
+    }
   }
 
   function fetchCount(isManual = false) {

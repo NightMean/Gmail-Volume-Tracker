@@ -6,7 +6,7 @@
  * This script runs in Google Apps Script (https://script.google.com) under your
  * Google account. It queries Gmail via the official GmailApp API to accurately
  * count all incoming emails received today across all folders (Inbox, Trash, Spam,
- * Archive, and custom labels).
+ * Archive, and custom labels) and caches 30-day activity trends.
  *
  * Deploy this as a Web App:
  * 1. Open https://script.google.com and paste this code into Code.gs
@@ -113,7 +113,109 @@ function doGet(e) {
       messageCount = threadCount;
     }
 
-    // 6. Return response
+    // 6. Fetch / Load 30-Day History with persistent caching
+    const historyList = [];
+    let userProperties = null;
+    let cachedHistory = {};
+
+    try {
+      userProperties = PropertiesService.getUserProperties();
+      const rawCached = userProperties.getProperty("GMAIL_DAILY_HISTORY");
+      if (rawCached) {
+        cachedHistory = JSON.parse(rawCached);
+      }
+    } catch (err) {
+      cachedHistory = {};
+    }
+
+    const scriptStartTime = Date.now();
+    let cacheUpdated = false;
+
+    // Loop through the last 30 days (from 29 days ago up to today)
+    for (let dayOffset = 29; dayOffset >= 0; dayOffset--) {
+      const d = new Date(startOfDayDate.getTime() - dayOffset * 24 * 60 * 60 * 1000);
+      const dateKey = Utilities.formatDate(d, timeZone, "yyyy-MM-dd");
+      const dayNum = d.getDate();
+      const dayName = Utilities.formatDate(d, timeZone, "E");
+      const dStartEpoch = Math.floor(d.getTime() / 1000);
+      const dEndEpoch = dStartEpoch + 24 * 60 * 60;
+      const isToday = (dayOffset === 0);
+
+      if (isToday) {
+        historyList.push({
+          date: dateKey,
+          dayNumber: dayNum,
+          dayName: dayName,
+          threadsCount: threadCount,
+          messagesCount: messageCount,
+          startEpochSec: dStartEpoch,
+          endEpochSec: dEndEpoch,
+          isToday: true
+        });
+      } else if (cachedHistory[dateKey] !== undefined) {
+        const item = cachedHistory[dateKey];
+        historyList.push({
+          date: dateKey,
+          dayNumber: dayNum,
+          dayName: dayName,
+          threadsCount: item.threadsCount,
+          messagesCount: item.messagesCount || item.threadsCount,
+          startEpochSec: dStartEpoch,
+          endEpochSec: dEndEpoch,
+          isToday: false
+        });
+      } else {
+        // Missing past day: query and cache if within time budget
+        let dayThreads = 0;
+        if (Date.now() - scriptStartTime < 15000) {
+          try {
+            const dayQuery = `in:anywhere after:${dStartEpoch} before:${dEndEpoch} -from:me`;
+            const pastResults = GmailApp.search(dayQuery, 0, 500);
+            dayThreads = pastResults.length;
+            cachedHistory[dateKey] = {
+              threadsCount: dayThreads,
+              messagesCount: dayThreads
+            };
+            cacheUpdated = true;
+          } catch (err) {
+            dayThreads = 0;
+          }
+        }
+
+        historyList.push({
+          date: dateKey,
+          dayNumber: dayNum,
+          dayName: dayName,
+          threadsCount: dayThreads,
+          messagesCount: dayThreads,
+          startEpochSec: dStartEpoch,
+          endEpochSec: dEndEpoch,
+          isToday: false
+        });
+      }
+    }
+
+    // Save updated history cache & purge entries older than 45 days
+    if (cacheUpdated && userProperties) {
+      try {
+        const cutoffEpoch = Math.floor(Date.now() / 1000) - 45 * 24 * 60 * 60;
+        const cleanedCache = {};
+        for (const k in cachedHistory) {
+          const parts = k.split("-");
+          if (parts.length === 3) {
+            const entryEpoch = Math.floor(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)).getTime() / 1000);
+            if (entryEpoch >= cutoffEpoch) {
+              cleanedCache[k] = cachedHistory[k];
+            }
+          }
+        }
+        userProperties.setProperty("GMAIL_DAILY_HISTORY", JSON.stringify(cleanedCache));
+      } catch (err) {
+        // Non-fatal if property save fails
+      }
+    }
+
+    // 7. Return response
     const result = {
       status: "success",
       date: formattedDate,
@@ -121,6 +223,7 @@ function doGet(e) {
       searchQuery: searchQuery,
       messagesCount: messageCount,
       threadsCount: threadCount,
+      history: historyList,
       updatedAt: Utilities.formatDate(new Date(), timeZone, "yyyy-MM-dd HH:mm:ss z"),
       timeZone: timeZone
     };
