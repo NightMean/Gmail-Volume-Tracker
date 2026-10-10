@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gmail Volume Tracker
 // @namespace    https://github.com/NightMean/Gmail-Volume-Tracker
-// @version      1.3.1
+// @version      1.3.2
 // @description  Displays a real-time incoming email volume counter and 30-day activity heatmap in Gmail.
 // @author       NightMean
 // @match        https://mail.google.com/*
@@ -64,15 +64,19 @@
     GM_setValue('GMAIL_VOLUME_TRACKER_LAST_DATA', data);
   }
 
+  function promptForScriptUrl() {
+    const current = getAppScriptUrl();
+    const input = prompt("Enter your Google Apps Script Web App URL:\n(e.g., https://script.google.com/macros/s/.../exec?token=YOUR_TOKEN)", current);
+    if (input !== null) {
+      setAppScriptUrl(input);
+      fetchCount(true);
+    }
+  }
+
   // Register Tampermonkey Menu Commands
   if (typeof GM_registerMenuCommand === 'function') {
     GM_registerMenuCommand("⚙️ Set Google Apps Script URL", () => {
-      const current = getAppScriptUrl();
-      const input = prompt("Enter your Google Apps Script Web App URL:\n(e.g., https://script.google.com/macros/s/.../exec)", current);
-      if (input !== null) {
-        setAppScriptUrl(input);
-        fetchCount(true);
-      }
+      promptForScriptUrl();
     });
 
     GM_registerMenuCommand("🔄 Refresh Count Now", () => {
@@ -88,6 +92,79 @@
   let countNumberEl = null;
   let iconEl = null;
   let tooltipEl = null;
+  let bannerEl = null;
+
+  function setBadgeState(state, text = null, title = null) {
+    if (!badgeContainer) return;
+    const badge = badgeContainer.querySelector('.gvt-badge');
+    if (!badge) return;
+
+    badge.classList.remove('has-error', 'has-warning');
+
+    if (state === 'error') {
+      badge.classList.add('has-error');
+    } else if (state === 'warning') {
+      badge.classList.add('has-warning');
+    }
+
+    if (text !== null && countNumberEl) {
+      countNumberEl.textContent = text;
+    }
+
+    if (title !== null) {
+      badge.title = title;
+    }
+  }
+
+  function showStatusBanner(type, title, description, showConfigBtn = false) {
+    if (!bannerEl) return;
+    bannerEl.textContent = '';
+    bannerEl.className = `gvt-banner ${type}`;
+    bannerEl.style.display = 'flex';
+
+    const header = document.createElement('div');
+    header.className = 'gvt-banner-header';
+    header.textContent = title;
+
+    const desc = document.createElement('div');
+    desc.className = 'gvt-banner-desc';
+    desc.textContent = description;
+
+    bannerEl.appendChild(header);
+    bannerEl.appendChild(desc);
+
+    const actions = document.createElement('div');
+    actions.className = 'gvt-banner-actions';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'gvt-banner-btn';
+    retryBtn.textContent = '🔄 Retry';
+    retryBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fetchCount(true);
+    });
+    actions.appendChild(retryBtn);
+
+    if (showConfigBtn) {
+      const cfgBtn = document.createElement('button');
+      cfgBtn.className = 'gvt-banner-btn';
+      cfgBtn.textContent = '⚙️ Set URL';
+      cfgBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        promptForScriptUrl();
+      });
+      actions.appendChild(cfgBtn);
+    }
+
+    bannerEl.appendChild(actions);
+  }
+
+  function hideStatusBanner() {
+    if (bannerEl) {
+      bannerEl.style.display = 'none';
+      bannerEl.textContent = '';
+    }
+  }
 
   function getTodayStartEpochSec() {
     const today = new Date();
@@ -180,6 +257,18 @@
         transform: scale(0.96) !important;
       }
 
+      .gvt-badge.has-error {
+        border-color: #ea4335 !important;
+        color: #ea4335 !important;
+        background-color: rgba(234, 67, 53, 0.12) !important;
+      }
+
+      .gvt-badge.has-warning {
+        border-color: #fbbc04 !important;
+        color: #fbbc04 !important;
+        background-color: rgba(251, 188, 4, 0.12) !important;
+      }
+
       /* Dark Theme */
       @media (prefers-color-scheme: dark) {
         .gvt-badge {
@@ -190,6 +279,16 @@
         }
         .gvt-badge:hover {
           background-color: #3c4043 !important;
+        }
+        .gvt-badge.has-error {
+          border-color: #f28b82 !important;
+          color: #f28b82 !important;
+          background-color: rgba(234, 67, 53, 0.22) !important;
+        }
+        .gvt-badge.has-warning {
+          border-color: #fdd663 !important;
+          color: #fdd663 !important;
+          background-color: rgba(251, 188, 4, 0.22) !important;
         }
       }
 
@@ -299,6 +398,68 @@
       .gvt-action-btn:hover {
         color: #ffffff !important;
         background: rgba(255,255,255,0.1) !important;
+      }
+
+      /* In-Panel Status & Error Banner */
+      .gvt-banner {
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        margin-bottom: 10px !important;
+        font-size: 11px !important;
+        line-height: 1.4 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 5px !important;
+        box-sizing: border-box !important;
+      }
+
+      .gvt-banner.error {
+        background-color: rgba(234, 67, 53, 0.16) !important;
+        border: 1px solid rgba(234, 67, 53, 0.45) !important;
+        color: #f28b82 !important;
+      }
+
+      .gvt-banner.warning {
+        background-color: rgba(251, 188, 4, 0.16) !important;
+        border: 1px solid rgba(251, 188, 4, 0.45) !important;
+        color: #fdd663 !important;
+      }
+
+      .gvt-banner-header {
+        display: flex !important;
+        align-items: center !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+        gap: 6px !important;
+      }
+
+      .gvt-banner-desc {
+        word-break: break-word !important;
+        opacity: 0.95 !important;
+        font-size: 11px !important;
+      }
+
+      .gvt-banner-actions {
+        display: flex !important;
+        gap: 6px !important;
+        margin-top: 3px !important;
+      }
+
+      .gvt-banner-btn {
+        background: rgba(255, 255, 255, 0.15) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        color: #ffffff !important;
+        border-radius: 4px !important;
+        padding: 3px 8px !important;
+        font-size: 11px !important;
+        cursor: pointer !important;
+        font-weight: 500 !important;
+        line-height: 1 !important;
+        transition: background-color 0.2s !important;
+      }
+
+      .gvt-banner-btn:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
       }
 
       .gvt-summary-stats {
@@ -521,6 +682,13 @@
     ttHeader.appendChild(ttActions);
     tooltipEl.appendChild(ttHeader);
 
+    // In-Panel Error & Status Banner
+    bannerEl = document.createElement('div');
+    bannerEl.id = 'gvt-status-banner';
+    bannerEl.className = 'gvt-banner';
+    bannerEl.style.display = 'none';
+    tooltipEl.appendChild(bannerEl);
+
     // Summary stats bar
     const statsRow = document.createElement('div');
     statsRow.className = 'gvt-summary-stats';
@@ -610,6 +778,10 @@
       : (data.messagesCount !== undefined ? data.messagesCount : data.threadsCount);
 
     countNumberEl.textContent = count !== undefined ? count : '?';
+
+    if (!data.quotaExceeded) {
+      setBadgeState('normal', null, `Gmail Volume Tracker: ${count} incoming emails today. Click to pin heatmap.`);
+    }
 
     // Update quick summary stats
     const statToday = document.getElementById('gvt-stat-today');
@@ -748,7 +920,8 @@
     const url = getAppScriptUrl();
 
     if (!url) {
-      if (countNumberEl) countNumberEl.textContent = 'setup';
+      setBadgeState('warning', 'setup', 'Gmail Volume Tracker: Web App URL not configured. Click to set up.');
+      showStatusBanner('warning', '⚙️ Setup Required', 'Please configure your Google Apps Script Web App URL to start tracking email volume.', true);
       return;
     }
 
@@ -767,20 +940,59 @@
       if (iconEl) iconEl.classList.remove('spinning');
       console.log('[Gmail Volume Tracker] Received response:', data);
 
-      if (data && (data.status === "success" || data.status === "quota_exceeded")) {
+      if (data && data.status === "success") {
+        hideStatusBanner();
+        setBadgeState('normal');
         data.clientFetchedAt = formatTime(new Date());
         setLastData(data);
         updateUI(data);
-
-        if (data.status === "quota_exceeded" && isManual) {
-          alert("⚠️ Google Apps Script Daily Quota Reached\n\n" +
-                "Google restricts Gmail read operations to a daily quota for free Google accounts.\n\n" +
-                "Your tracker is showing cached statistics and will resume live counting automatically once Google resets the rolling 24-hour quota.");
-        }
+      } else if (data && data.status === "quota_exceeded") {
+        data.clientFetchedAt = formatTime(new Date());
+        setLastData(data);
+        updateUI(data);
+        setBadgeState('warning', null, 'Gmail Volume Tracker: Daily Google API quota reached (showing cached data). Click for details.');
+        showStatusBanner(
+          'warning',
+          '⚠️ Daily Google API Quota Reached',
+          data.warning || 'Google temporarily throttled Gmail read queries for today (rolling 24h quota). Displaying cached statistics until reset.'
+        );
       } else {
         console.error("[Gmail Volume Tracker] Error from Web App:", data);
-        if (countNumberEl) countNumberEl.textContent = '!';
-        if (isManual) alert("Error fetching count:\n" + (data.message || JSON.stringify(data)));
+        const errMsg = (data && (data.message || data.error)) || JSON.stringify(data);
+        const isQuota = errMsg.includes('príliš veľakrát') || errMsg.includes('too many times') || errMsg.includes('Service invoked');
+        const isAuth = errMsg.includes('Unauthorized') || errMsg.includes('token');
+
+        if (isQuota) {
+          const cached = getLastData();
+          if (cached) {
+            cached.quotaExceeded = true;
+            updateUI(cached);
+          } else {
+            if (countNumberEl) countNumberEl.textContent = '!';
+          }
+          setBadgeState('warning', null, 'Gmail Volume Tracker: Daily Google API quota reached. Click badge for details.');
+          showStatusBanner(
+            'warning',
+            '⚠️ Daily Google API Quota Reached',
+            'Google temporarily throttled Gmail read queries (Služba vyvolaná príliš veľakrát ráz za deň). Showing cached statistics until rolling 24h quota reset.'
+          );
+        } else if (isAuth) {
+          setBadgeState('error', '!', 'Gmail Volume Tracker: Security token invalid or missing (?token=...). Click badge to fix URL.');
+          showStatusBanner(
+            'error',
+            '🔒 Authentication Failed',
+            'Invalid or missing security token. Please ensure ?token=YOUR_TOKEN matches SECURITY_SECRET in Code.gs.',
+            true
+          );
+        } else {
+          setBadgeState('error', '!', `Gmail Volume Tracker Error: ${errMsg}. Click badge for details.`);
+          showStatusBanner(
+            'error',
+            '❌ Web App Error',
+            errMsg,
+            true
+          );
+        }
       }
     }
 
@@ -788,11 +1000,24 @@
       isFetching = false;
       if (iconEl) iconEl.classList.remove('spinning');
       console.error("[Gmail Volume Tracker] Fetch error:", err);
-      if (countNumberEl) countNumberEl.textContent = '!';
-      if (isManual && isNetError) {
-        alert("Network error connecting to Google Apps Script Web App.\n\n" +
-              "1. If Tampermonkey asked for permission to access script.google.com, make sure to choose 'Always allow domain'.\n" +
-              "2. Verify that in Apps Script, under 'Deploy' -> 'Manage deployments', 'Who has access' is set to 'Anyone'.");
+
+      if (isNetError) {
+        setBadgeState('error', '!', 'Gmail Volume Tracker: Connection failed. Click badge for details.');
+        showStatusBanner(
+          'error',
+          '🌐 Connection Failed',
+          'Could not reach Google Apps Script Web App. Please ensure "Who has access" is set to "Anyone" and verify your URL.',
+          true
+        );
+      } else {
+        const msg = String(err);
+        setBadgeState('error', '!', `Gmail Volume Tracker Error: ${msg}. Click badge for details.`);
+        showStatusBanner(
+          'error',
+          '❌ Request Error',
+          msg,
+          true
+        );
       }
     }
 
